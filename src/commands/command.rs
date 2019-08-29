@@ -417,6 +417,7 @@ pub enum CommandAction {
     Exit,
     EnterShell(String),
     EnterValueShell(Tagged<Value>),
+    EnterHelpShell(Tagged<Value>),
     PreviousShell,
     NextShell,
     LeaveShell,
@@ -433,6 +434,9 @@ impl ToDebug for CommandAction {
             CommandAction::EnterShell(s) => write!(f, "action:enter-shell={}", s),
             CommandAction::EnterValueShell(t) => {
                 write!(f, "action:enter-value-shell={:?}", t.debug())
+            }
+            CommandAction::EnterHelpShell(t) => {
+                write!(f, "action:enter-help-shell={:?}", t.debug())
             }
             CommandAction::PreviousShell => write!(f, "action:previous-shell"),
             CommandAction::NextShell => write!(f, "action:next-shell"),
@@ -488,11 +492,27 @@ impl ReturnSuccess {
 pub trait WholeStreamCommand: Send + Sync {
     fn name(&self) -> &str;
 
+    fn signature(&self) -> Signature {
+        Signature {
+            name: self.name().to_string(),
+            positional: vec![],
+            rest_positional: None,
+            named: indexmap::IndexMap::new(),
+            is_filter: true,
+        }
+    }
+
+    fn usage(&self) -> &str;
+
     fn run(
         &self,
         args: CommandArgs,
         registry: &registry::CommandRegistry,
     ) -> Result<OutputStream, ShellError>;
+}
+
+pub trait PerItemCommand: Send + Sync {
+    fn name(&self) -> &str;
 
     fn signature(&self) -> Signature {
         Signature {
@@ -503,10 +523,8 @@ pub trait WholeStreamCommand: Send + Sync {
             is_filter: true,
         }
     }
-}
 
-pub trait PerItemCommand: Send + Sync {
-    fn name(&self) -> &str;
+    fn usage(&self) -> &str;
 
     fn run(
         &self,
@@ -515,16 +533,6 @@ pub trait PerItemCommand: Send + Sync {
         shell_manager: &ShellManager,
         input: Tagged<Value>,
     ) -> Result<OutputStream, ShellError>;
-
-    fn signature(&self) -> Signature {
-        Signature {
-            name: self.name().to_string(),
-            positional: vec![],
-            rest_positional: None,
-            named: indexmap::IndexMap::new(),
-            is_filter: true,
-        }
-    }
 }
 
 pub enum Command {
@@ -544,6 +552,13 @@ impl Command {
         match self {
             Command::WholeStream(command) => command.signature(),
             Command::PerItem(command) => command.signature(),
+        }
+    }
+
+    pub fn usage(&self) -> &str {
+        match self {
+            Command::WholeStream(command) => command.usage(),
+            Command::PerItem(command) => command.usage(),
         }
     }
 
@@ -613,6 +628,10 @@ pub struct FnFilterCommand {
 impl WholeStreamCommand for FnFilterCommand {
     fn name(&self) -> &str {
         &self.name
+    }
+
+    fn usage(&self) -> &str {
+        "FnFilterCommand usage."
     }
 
     fn run(

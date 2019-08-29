@@ -22,6 +22,7 @@ pub trait Plugin {
     #[allow(unused)]
     fn sink(&mut self, call_info: CallInfo, input: Vec<Tagged<Value>>) {}
 
+    fn usage(&mut self) -> &str {""}
     fn quit(&mut self) {}
 }
 
